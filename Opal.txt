@@ -1,0 +1,1162 @@
+-- GALEGAY FARM | English interface, STOP after automatic server hop
+local CORE_SOURCE = [=======[
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+while not player do
+    task.wait()
+    player = Players.LocalPlayer
+end
+local playerGui = player:WaitForChild("PlayerGui")
+local STOP_FILE = "galegay_farm_stopped.flag"
+local HOP_FILE = "galegay_farm_hopped.flag"
+local function flagIsOn(path)
+    if type(isfile) ~= "function"
+        or type(readfile) ~= "function" then
+        return false
+    end
+    local ok, value = pcall(function()
+        return isfile(path) and readfile(path) or "0"
+    end)
+    return ok and value == "1"
+end
+if flagIsOn(STOP_FILE) then return end
+local LAST_SERVER_FILE = "galegay_farm_last_server.txt"
+local runtimeEnvironment = _G
+if type(getgenv) == "function" then
+    local ok, env = pcall(getgenv)
+    if ok and type(env) == "table" then
+        runtimeEnvironment = env
+    end
+end
+-- STOP appears only when the hub resumes automatically after a Server Hop.
+-- Old session files and JobId changes do not trigger STOP.
+local hasHopped = runtimeEnvironment.__KSTG_FARM_HOP_JOB == game.JobId
+runtimeEnvironment.__KSTG_FARM_HOP_JOB = nil
+if type(writefile) == "function" then
+    pcall(function()
+        writefile(LAST_SERVER_FILE, game.JobId)
+    end)
+end
+local previousShutdown = runtimeEnvironment.__KSTG_FARM_SHUTDOWN
+if type(previousShutdown) == "function" then
+    pcall(previousShutdown)
+end
+local existing = playerGui:FindFirstChild("GALEGAY_FARM_HUB")
+if existing then existing:Destroy() end
+local function ui(className, props, parent)
+    local obj = Instance.new(className)
+    for key, value in pairs(props or {}) do
+        obj[key] = value
+    end
+    obj.Parent = parent
+    return obj
+end
+local function round(obj, px)
+    ui("UICorner", {
+        CornerRadius = UDim.new(0, px or 9)
+    }, obj)
+end
+local function outline(obj)
+    ui("UIStroke", {
+        Color = Color3.fromRGB(65, 65, 65),
+        Thickness = 1
+    }, obj)
+end
+local colors = {
+    background = Color3.fromRGB(24, 24, 24),
+    header = Color3.fromRGB(27, 27, 27),
+    sidebar = Color3.fromRGB(31, 31, 31),
+    card = Color3.fromRGB(30, 30, 30),
+    accent = Color3.fromRGB(149, 102, 217)
+}
+local gui = ui("ScreenGui", {
+    Name = "GALEGAY_FARM_HUB",
+    AutoLocalize = false,
+    ResetOnSpawn = false,
+    DisplayOrder = 9999,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+}, playerGui)
+local main = ui("Frame", {
+    Name = "Main",
+    Size = UDim2.fromOffset(850, 480),
+    Position = UDim2.new(0.5, -425, 0.5, -240),
+    BackgroundColor3 = colors.background,
+    ClipsDescendants = true,
+    BorderSizePixel = 0
+}, gui)
+round(main, 16)
+outline(main)
+local scale = ui("UIScale", {Scale = 1}, main)
+local function resize()
+    local camera = workspace.CurrentCamera
+    if camera then
+        local viewport = camera.ViewportSize
+        scale.Scale = math.min(
+            viewport.X / 900,
+            viewport.Y / 530,
+            1
+        )
+    end
+end
+resize()
+local viewportConnection
+local function connectViewport()
+    if viewportConnection then
+        viewportConnection:Disconnect()
+    end
+    if workspace.CurrentCamera then
+        viewportConnection =
+            workspace.CurrentCamera:GetPropertyChangedSignal(
+                "ViewportSize"
+            ):Connect(resize)
+    end
+    resize()
+end
+connectViewport()
+local cameraConnection =
+    workspace:GetPropertyChangedSignal("CurrentCamera")
+    :Connect(connectViewport)
+local header = ui("Frame", {
+    Position = UDim2.fromOffset(0, 0),
+    Size = UDim2.new(1, 0, 0, 62),
+    BackgroundColor3 = colors.header,
+    BorderSizePixel = 0
+}, main)
+ui("TextLabel", {
+    Size = UDim2.new(1, -135, 1, 0),
+    Position = UDim2.fromOffset(22, 0),
+    BackgroundTransparency = 1,
+    Text = "GALEGAY HUB  |  FARM",
+    Font = Enum.Font.GothamBold,
+    TextSize = 21,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextColor3 = Color3.fromRGB(245, 245, 245)
+}, header)
+local function headerButton(symbol, right)
+    local button = ui("TextButton", {
+        Size = UDim2.fromOffset(49, 40),
+        Position = UDim2.new(1, right, 0, 11),
+        BackgroundColor3 = Color3.fromRGB(42, 42, 42),
+        Text = symbol,
+        Font = Enum.Font.GothamBold,
+        TextSize = 23,
+        TextColor3 = Color3.new(1, 1, 1)
+    }, header)
+    round(button, 9)
+    return button
+end
+local minimize = headerButton("—", -111)
+local close = headerButton("×", -56)
+local sidebar = ui("Frame", {
+    Position = UDim2.fromOffset(0, 63),
+    Size = UDim2.new(0, 190, 1, -63),
+    BackgroundColor3 = colors.sidebar,
+    BorderSizePixel = 0
+}, main)
+ui("UIListLayout", {
+    Padding = UDim.new(0, 6),
+    SortOrder = Enum.SortOrder.LayoutOrder
+}, sidebar)
+ui("UIPadding", {
+    PaddingTop = UDim.new(0, 15),
+    PaddingLeft = UDim.new(0, 10),
+    PaddingRight = UDim.new(0, 10)
+}, sidebar)
+local content = ui("Frame", {
+    Position = UDim2.fromOffset(191, 63),
+    Size = UDim2.new(1, -191, 1, -63),
+    BackgroundColor3 = colors.background,
+    BorderSizePixel = 0
+}, main)
+local pages = {}
+local menus = {}
+local selectedPage = "Info"
+local function newPage(name)
+    local page = ui("ScrollingFrame", {
+        Name = name,
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 5,
+        CanvasSize = UDim2.fromOffset(0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        Visible = false
+    }, content)
+    ui("UIListLayout", {
+        Padding = UDim.new(0, 12),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    }, page)
+    ui("UIPadding", {
+        PaddingTop = UDim.new(0, 18),
+        PaddingLeft = UDim.new(0, 18),
+        PaddingRight = UDim.new(0, 18),
+        PaddingBottom = UDim.new(0, 18)
+    }, page)
+    pages[name] = page
+    return page
+end
+local infoPage = newPage("Info")
+local farmPage = newPage("Farm")
+local localPage = newPage("Local")
+local function showPage(name)
+    selectedPage = name
+    for id, page in pairs(pages) do
+        page.Visible = (id == name)
+    end
+    for id, button in pairs(menus) do
+        button.BackgroundColor3 = id == name
+            and Color3.fromRGB(65, 50, 86)
+            or colors.sidebar
+        button.TextColor3 = id == name
+            and Color3.fromRGB(255, 255, 255)
+            or Color3.fromRGB(165, 165, 165)
+    end
+end
+local function newMenu(label, name, order)
+    local button = ui("TextButton", {
+        LayoutOrder = order,
+        Size = UDim2.new(1, 0, 0, 44),
+        Text = label,
+        BackgroundColor3 = colors.sidebar,
+        Font = Enum.Font.GothamBold,
+        TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextColor3 = Color3.fromRGB(165, 165, 165)
+    }, sidebar)
+    round(button, 8)
+    ui("UIPadding", {
+        PaddingLeft = UDim.new(0, 13)
+    }, button)
+    menus[name] = button
+    button.MouseButton1Click:Connect(function()
+        showPage(name)
+    end)
+end
+newMenu("▤   Info", "Info", 1)
+newMenu("✦   Farm", "Farm", 2)
+newMenu("◈   Local", "Local", 3)
+showPage("Info")
+local function card(parent, heading, description, height)
+    local frame = ui("Frame", {
+        Size = UDim2.new(1, -5, 0, height or 100),
+        BackgroundColor3 = colors.card,
+        BorderSizePixel = 0
+    }, parent)
+    round(frame, 10)
+    outline(frame)
+    ui("TextLabel", {
+        Position = UDim2.fromOffset(15, 9),
+        Size = UDim2.new(1, -30, 0, 29),
+        BackgroundTransparency = 1,
+        Text = heading,
+        Font = Enum.Font.GothamBold,
+        TextSize = 17,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextColor3 = Color3.fromRGB(243, 243, 243)
+    }, frame)
+    local desc = ui("TextLabel", {
+        Position = UDim2.fromOffset(15, 41),
+        Size = UDim2.new(1, -30, 1, -49),
+        BackgroundTransparency = 1,
+        Text = description,
+        Font = Enum.Font.Gotham,
+        TextSize = 13,
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Top,
+        TextColor3 = Color3.fromRGB(174, 174, 174)
+    }, frame)
+    return frame, desc
+end
+local creditCard = ui("Frame", {
+    Name = "CreditCard",
+    Size = UDim2.new(1, -5, 0, 66),
+    BackgroundColor3 = colors.card,
+    BorderSizePixel = 0
+}, localPage)
+round(creditCard, 10)
+outline(creditCard)
+ui("TextLabel", {
+    Name = "CreditText",
+    Position = UDim2.fromOffset(15, 18),
+    Size = UDim2.new(1, -30, 0, 30),
+    BackgroundTransparency = 1,
+    Text = "by Kstg",
+    Font = Enum.Font.GothamBold,
+    TextSize = 16,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextColor3 = Color3.fromRGB(245, 245, 245),
+    Active = false
+}, creditCard)
+card(
+    infoPage,
+    "Welcome to GALEGAY HUB",
+    "Choose Info or Farm from the sidebar."
+)
+local _, serverText = card(
+    infoPage,
+    "Server Information",
+    "Players: loading..."
+)
+local function updatePlayers(leaving)
+    local count = 0
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= leaving then
+            count += 1
+        end
+    end
+    if serverText.Parent then
+        serverText.Text = string.format(
+            "Players: %d / %d",
+            count, Players.MaxPlayers
+        )
+    end
+end
+updatePlayers()
+local joins = Players.PlayerAdded:Connect(function()
+    updatePlayers()
+end)
+local leaves = Players.PlayerRemoving:Connect(function(p)
+    updatePlayers(p)
+end)
+card(
+    infoPage,
+    "Your Player",
+    player.DisplayName .. "  |  @" .. player.Name
+)
+local settingsButton = ui("TextButton", {
+    Size = UDim2.new(1, -5, 0, 52),
+    BackgroundColor3 = Color3.fromRGB(52, 45, 68),
+    BorderSizePixel = 0,
+    Text = "🎨  Customize Hub  ▾",
+    TextColor3 = Color3.new(1, 1, 1),
+    Font = Enum.Font.GothamBold,
+    TextSize = 16
+}, infoPage)
+round(settingsButton, 10)
+local settings = ui("Frame", {
+    Size = UDim2.new(1, -5, 0, 225),
+    BackgroundColor3 = colors.card,
+    BorderSizePixel = 0,
+    Visible = false
+}, infoPage)
+round(settings, 10)
+settingsButton.MouseButton1Click:Connect(function()
+    settings.Visible = not settings.Visible
+    settingsButton.Text = settings.Visible
+        and "🎨  Customize Hub  ▴"
+        or "🎨  Customize Hub  ▾"
+end)
+ui("TextLabel", {
+    Position = UDim2.fromOffset(16, 10),
+    Size = UDim2.new(1, -32, 0, 27),
+    Text = "Change Hub Color",
+    Font = Enum.Font.GothamBold,
+    TextSize = 15,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextColor3 = Color3.new(1, 1, 1),
+    BackgroundTransparency = 1
+}, settings)
+local baseColor = colors.background
+local transparency = 0
+local function updateTheme()
+    for _, surface in ipairs({
+        main, header, sidebar, content
+    }) do
+        surface.BackgroundColor3 = baseColor
+        surface.BackgroundTransparency = transparency / 100
+    end
+end
+local themes = {
+    {"Dark", Color3.fromRGB(24, 24, 24)},
+    {"Purple", Color3.fromRGB(65, 40, 95)},
+    {"Blue", Color3.fromRGB(30, 55, 100)},
+    {"Green", Color3.fromRGB(28, 80, 62)},
+    {"Red", Color3.fromRGB(105, 38, 48)},
+    {"Pink", Color3.fromRGB(105, 45, 85)}
+}
+for i, t in ipairs(themes) do
+    local b = ui("TextButton", {
+        Position = UDim2.new((i - 1) / #themes, 5, 0, 43),
+        Size = UDim2.new(1 / #themes, -10, 0, 44),
+        Text = t[1],
+        BackgroundColor3 = t[2],
+        BorderSizePixel = 0,
+        TextColor3 = Color3.new(1, 1, 1),
+        Font = Enum.Font.GothamBold,
+        TextSize = 11
+    }, settings)
+    round(b, 8)
+    b.MouseButton1Click:Connect(function()
+        baseColor = t[2]
+        updateTheme()
+    end)
+end
+local opacityLabel = ui("TextLabel", {
+    Position = UDim2.fromOffset(16, 100),
+    Size = UDim2.new(1, -32, 0, 26),
+    BackgroundTransparency = 1,
+    Text = "Background Transparency: 0%",
+    Font = Enum.Font.GothamBold,
+    TextSize = 14,
+    TextXAlignment = Enum.TextXAlignment.Left,
+    TextColor3 = Color3.new(1, 1, 1)
+}, settings)
+local opacityTrack = ui("Frame", {
+    Position = UDim2.new(0, 65, 0, 149),
+    Size = UDim2.new(1, -130, 0, 12),
+    BackgroundColor3 = Color3.fromRGB(76, 76, 80),
+    BorderSizePixel = 0
+}, settings)
+round(opacityTrack, 12)
+local opacityFill = ui("Frame", {
+    Size = UDim2.fromScale(0, 1),
+    BackgroundColor3 = Color3.fromRGB(160, 105, 235),
+    BorderSizePixel = 0
+}, opacityTrack)
+round(opacityFill, 12)
+local function setOpacity(percent)
+    transparency = math.clamp(
+        math.floor(percent + 0.5),
+        0, 100
+    )
+    opacityLabel.Text =
+        "Background Transparency: "
+        .. transparency .. "%"
+    opacityFill.Size =
+        UDim2.fromScale(transparency / 100, 1)
+    updateTheme()
+end
+for _, item in ipairs({
+    {"−", 14, -5},
+    {"+", -54, 5}
+}) do
+    local sideRight = item[2] < 0
+    local b = ui("TextButton", {
+        Position = sideRight
+            and UDim2.new(1, item[2], 0, 136)
+            or UDim2.fromOffset(item[2], 136),
+        Size = UDim2.fromOffset(40, 38),
+        BackgroundColor3 = Color3.fromRGB(62, 56, 80),
+        BorderSizePixel = 0,
+        Text = item[1],
+        Font = Enum.Font.GothamBold,
+        TextSize = 24,
+        TextColor3 = Color3.new(1, 1, 1)
+    }, settings)
+    round(b, 8)
+    b.MouseButton1Click:Connect(function()
+        setOpacity(transparency + item[3])
+    end)
+end
+local sliding = false
+local function slideAt(x)
+    local w = opacityTrack.AbsoluteSize.X
+    if w > 0 then
+        setOpacity(
+            ((x - opacityTrack.AbsolutePosition.X) / w) * 100
+        )
+    end
+end
+opacityTrack.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        sliding = true
+        slideAt(input.Position.X)
+    end
+end)
+card(
+    farmPage,
+    "Farm",
+    "Select Snow, Candy and/or Slapple, then press EXECUTE. Auto Execute resumes selected farms after teleport. Small Server finds servers with 5 players or fewer.",
+    115
+)
+local _, statusText = card(
+    farmPage,
+    "Status",
+    "Snow, Candy and Slapple are ready. Turn on your selections and press EXECUTE.",
+    85
+)
+local selected = {
+    Snow = false,
+    Candy = false,
+    Slapple = false
+}
+local buttons = {}
+local alive = true
+local running = {
+    Snow = false,
+    Candy = false,
+    Slapple = false
+}
+local workers = {}
+local function stopWorkers()
+    for mode in pairs(selected) do selected[mode] = false end
+    for mode, thread in pairs(workers) do
+        pcall(function() task.cancel(thread) end)
+        workers[mode] = nil
+    end
+    for mode in pairs(running) do running[mode] = false end
+end
+local stopTriggered = false
+local SETTINGS_FILE = "galegay_farm_settings.txt"
+local CORE_FILE = "galegay_farm_core.lua"
+local autoExecute = false
+local smallServer = false
+local queueRegistered = false
+local hopConnection = player.OnTeleport:Connect(function(state)
+    if state == Enum.TeleportState.Started
+        and type(writefile) == "function" then
+        pcall(function()
+            writefile(HOP_FILE, "1")
+        end)
+    end
+end)
+local function loadSettings()
+    if type(isfile) ~= "function"
+        or type(readfile) ~= "function" then
+        return
+    end
+    if not isfile(SETTINGS_FILE) then return end
+    local ok, data = pcall(function()
+        return readfile(SETTINGS_FILE)
+    end)
+    if not ok or type(data) ~= "string" then return end
+    local fields = string.split(data, "|")
+    autoExecute = fields[1] == "1"
+    smallServer = fields[2] == "1"
+    selected.Snow = fields[3] == "1"
+    selected.Candy = fields[4] == "1"
+    selected.Slapple = fields[5] == "1"
+end
+local function saveSettings()
+    if type(writefile) ~= "function" then return end
+    local flags = {
+        autoExecute and "1" or "0",
+        smallServer and "1" or "0",
+        selected.Snow and "1" or "0",
+        selected.Candy and "1" or "0",
+        selected.Slapple and "1" or "0"
+    }
+    pcall(function()
+        writefile(
+            SETTINGS_FILE,
+            table.concat(flags, "|")
+        )
+    end)
+end
+local function queueAutoExecute()
+    if not autoExecute or queueRegistered then return end
+    local queue = queue_on_teleport
+        or (syn and syn.queue_on_teleport)
+        or (fluxus and fluxus.queue_on_teleport)
+    if type(queue) ~= "function"
+        or type(isfile) ~= "function"
+        or type(readfile) ~= "function"
+        or not isfile(CORE_FILE) then
+        warn("Auto Execute requires queue_on_teleport and local file access.")
+        return
+    end
+    local launcher = [[
+        if type(readfile) ~= "function"
+            or type(isfile) ~= "function" then
+            return
+        end
+        local cfg = "galegay_farm_settings.txt"
+        local core = "galegay_farm_core.lua"
+        local stopped = "galegay_farm_stopped.flag"
+        if isfile(stopped)
+            and readfile(stopped) == "1" then
+            return
+        end
+        if not isfile(cfg) or not isfile(core) then
+            return
+        end
+        local ok, data = pcall(function()
+            return readfile(cfg)
+        end)
+        if not ok
+            or type(data) ~= "string"
+            or string.sub(data, 1, 2) ~= "1|" then
+            return
+        end
+        local okCore, source = pcall(function()
+            return readfile(core)
+        end)
+        if okCore
+            and type(source) == "string"
+            and #source > 100 then
+            if type(writefile) == "function" then
+                pcall(function()
+                    writefile(
+                        "galegay_farm_hopped.flag",
+                        "1"
+                    )
+                end)
+            end
+            local run, err = loadstring(source)
+            if run then
+                local env = _G
+                if type(getgenv) == "function" then
+                    local okEnv, result = pcall(getgenv)
+                    if okEnv and type(result) == "table" then
+                        env = result
+                    end
+                end
+                env.__KSTG_FARM_HOP_JOB = game.JobId
+                run()
+            else
+                warn(err)
+            end
+        end
+    ]]
+    local ok, err = pcall(function()
+        queue(launcher)
+    end)
+    if ok then
+        queueRegistered = true
+    else
+        warn("Auto Execute: " .. tostring(err))
+    end
+end
+loadSettings()
+queueAutoExecute()
+local farmScripts = {
+    Snow = function()
+        loadstring(game:HttpGet(
+            'https://raw.githubusercontent.com/Cortzalno666/NectoVerse-Industries-Data/master/Scripts%20Folder/Auto.Slapple'
+        ))()
+    end,
+    Candy = function()
+        if type(firetouchinterest) ~= "function" then
+            warn("Candy requires firetouchinterest.")
+            return
+        end
+        while alive and selected.Candy do
+            local character = player.Character
+            local head = character
+                and character:FindFirstChild("Head")
+            local candyFolder =
+                workspace:FindFirstChild("CandyCorns")
+            if head and candyFolder then
+                for _, v in pairs(
+                    candyFolder:GetChildren()
+                ) do
+                    if not alive or not selected.Candy then
+                        break
+                    end
+                    if v:FindFirstChildWhichIsA(
+                        "TouchTransmitter"
+                    ) then
+                        pcall(function()
+                            firetouchinterest(head, v, 0)
+                            firetouchinterest(head, v, 1)
+                        end)
+                    end
+                end
+            end
+            task.wait()
+        end
+    end,
+    Slapple = function()
+        if type(firetouchinterest) ~= "function" then
+            warn("Slapple requires firetouchinterest.")
+            return
+        end
+        while alive and selected.Slapple do
+            local character = player.Character
+            local root = character
+                and character:FindFirstChild(
+                    "HumanoidRootPart"
+                )
+            local arena = workspace:FindFirstChild("Arena")
+            local island = arena
+                and arena:FindFirstChild("island5")
+            local slapples = island
+                and island:FindFirstChild("Slapples")
+            if root
+                and character:FindFirstChild("entered")
+                and slapples then
+                for _, v in ipairs(
+                    slapples:GetChildren()
+                ) do
+                    if not alive
+                        or not selected.Slapple then
+                        break
+                    end
+                    if v.Name == "Slapple"
+                        or v.Name == "GoldenSlapple" then
+                        local glove =
+                            v:FindFirstChild("Glove")
+                        if glove
+                            and glove:FindFirstChildWhichIsA(
+                                "TouchTransmitter"
+                            ) then
+                            pcall(function()
+                                firetouchinterest(root, glove, 0)
+                                firetouchinterest(root, glove, 1)
+                            end)
+                        end
+                    end
+                end
+            end
+            task.wait()
+        end
+    end
+}
+local function serverhop()
+    if not alive or stopTriggered then return false end
+    local candidates = {}
+    local cursor = nil
+    for page = 1, 3 do
+        local url =
+            "https://games.roblox.com/v1/games/"
+            .. game.PlaceId
+            .. "/servers/Public?sortOrder=Asc&limit=100"
+        if cursor and cursor ~= "" then
+            url = url
+                .. "&cursor="
+                .. HttpService:UrlEncode(cursor)
+        end
+        local ok, response = pcall(function()
+            return game:HttpGetAsync(url)
+        end)
+        if not ok then
+            statusText.Text =
+                "SERVERHOP unavailable: HTTP request failed."
+            return false
+        end
+        local decodedOk, body = pcall(function()
+            return HttpService:JSONDecode(response)
+        end)
+        if not decodedOk
+            or type(body) ~= "table" then
+            statusText.Text =
+                "SERVERHOP unavailable: invalid server list."
+            return false
+        end
+        for _, server in ipairs(body.data or {}) do
+            if type(server) == "table"
+                and type(server.playing) == "number"
+                and type(server.maxPlayers) == "number"
+                and type(server.id) == "string"
+                and server.id ~= game.JobId
+                and server.playing < server.maxPlayers
+                and (
+                    not smallServer
+                    or server.playing <= 5
+                ) then
+                table.insert(candidates, server)
+            end
+        end
+        if #candidates > 0 then
+            break
+        end
+        cursor = body.nextPageCursor
+        if not cursor then break end
+    end
+    if #candidates == 0 then
+        statusText.Text = smallServer
+            and "No small servers found."
+            or "No available servers found."
+        return false
+    end
+    table.sort(candidates, function(a, b)
+        return a.playing < b.playing
+    end)
+    local poolSize = smallServer
+        and math.min(5, #candidates)
+        or #candidates
+    local target = candidates[
+        math.random(1, poolSize)
+    ]
+    if not alive or stopTriggered then return false end
+    saveSettings()
+    queueAutoExecute()
+    statusText.Text =
+        "SERVERHOP: " .. target.playing
+        .. "/" .. target.maxPlayers .. " players"
+    local ok, err = pcall(function()
+        TeleportService:TeleportToPlaceInstance(
+            game.PlaceId, target.id, player
+        )
+    end)
+    if not ok then
+        statusText.Text =
+            "Teleport error: " .. tostring(err)
+    end
+    return ok
+end
+local function updateSelections()
+    local n = 0
+    for mode, button in pairs(buttons) do
+        local on = selected[mode]
+        if on then n += 1 end
+        button.Text = on and "ON" or "OFF"
+        button.BackgroundColor3 = on
+            and Color3.fromRGB(65, 110, 75)
+            or Color3.fromRGB(55, 55, 55)
+    end
+    if n == 0 then
+        statusText.Text = "No farm selected."
+    else
+        statusText.Text =
+            tostring(n)
+            .. " farm(s) selected. Press EXECUTE."
+    end
+end
+for index, mode in ipairs({
+    "Snow", "Candy", "Slapple"
+}) do
+    local frame = ui("Frame", {
+        Size = UDim2.new(1, -5, 0, 66),
+        LayoutOrder = index,
+        BackgroundColor3 = colors.card,
+        BorderSizePixel = 0
+    }, farmPage)
+    round(frame, 10)
+    outline(frame)
+    ui("TextLabel", {
+        Position = UDim2.fromOffset(15, 18),
+        Size = UDim2.new(1, -150, 0, 30),
+        BackgroundTransparency = 1,
+        Text = mode,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextColor3 = Color3.fromRGB(245, 245, 245)
+    }, frame)
+    local button = ui("TextButton", {
+        Position = UDim2.new(1, -129, 0.5, -20),
+        Size = UDim2.fromOffset(113, 40),
+        BackgroundColor3 = Color3.fromRGB(55, 55, 55),
+        Text = "OFF",
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        TextColor3 = Color3.new(1, 1, 1)
+    }, frame)
+    round(button, 8)
+    buttons[mode] = button
+    button.MouseButton1Click:Connect(function()
+        selected[mode] = not selected[mode]
+        updateSelections()
+        saveSettings()
+    end)
+end
+local settingButtons = {}
+local function addFarmToggle(name, order, callback)
+    local row = ui("Frame", {
+        Size = UDim2.new(1, -5, 0, 62),
+        LayoutOrder = order,
+        BackgroundColor3 = colors.card,
+        BorderSizePixel = 0
+    }, farmPage)
+    round(row, 10)
+    outline(row)
+    ui("TextLabel", {
+        Size = UDim2.new(1, -155, 1, 0),
+        Position = UDim2.fromOffset(15, 0),
+        BackgroundTransparency = 1,
+        Text = name,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        TextColor3 = Color3.new(1, 1, 1),
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, row)
+    local button = ui("TextButton", {
+        Position = UDim2.new(1, -129, 0.5, -20),
+        Size = UDim2.fromOffset(113, 40),
+        BackgroundColor3 = Color3.fromRGB(55, 55, 55),
+        Text = "OFF",
+        TextColor3 = Color3.new(1, 1, 1),
+        Font = Enum.Font.GothamBold,
+        TextSize = 14
+    }, row)
+    round(button, 8)
+    settingButtons[name] = button
+    button.MouseButton1Click:Connect(callback)
+    return button
+end
+local function updateSettingButtons()
+    for name, enabled in pairs({
+        ["Auto Execute"] = autoExecute,
+        ["Small Server"] = smallServer
+    }) do
+        local button = settingButtons[name]
+        button.Text = enabled and "ON" or "OFF"
+        button.BackgroundColor3 = enabled
+            and Color3.fromRGB(65, 110, 75)
+            or Color3.fromRGB(55, 55, 55)
+    end
+end
+addFarmToggle("Auto Execute", 4, function()
+    autoExecute = not autoExecute
+    saveSettings()
+    if autoExecute then
+        if type(writefile) == "function" then
+            pcall(function() writefile(STOP_FILE, "0") end)
+        end
+        queueAutoExecute()
+    end
+    updateSettingButtons()
+end)
+addFarmToggle("Small Server", 5, function()
+    smallServer = not smallServer
+    saveSettings()
+    updateSettingButtons()
+end)
+updateSettingButtons()
+updateSelections()
+local executeButton = ui("TextButton", {
+    Size = UDim2.new(1, -5, 0, 54),
+    LayoutOrder = 6,
+    BackgroundColor3 = Color3.fromRGB(93, 63, 140),
+    BorderSizePixel = 0,
+    Text = "EXECUTE",
+    Font = Enum.Font.GothamBold,
+    TextSize = 19,
+    TextColor3 = Color3.new(1, 1, 1)
+}, farmPage)
+round(executeButton, 10)
+local function executeSelected()
+    if not alive or stopTriggered then return end
+    if smallServer
+        and #Players:GetPlayers() > 5 then
+        statusText.Text =
+            "Small Server ON: use SERVERHOP."
+        return
+    end
+    local requested, started = 0, 0
+    for _, mode in ipairs({
+        "Snow", "Candy", "Slapple"
+    }) do
+        if selected[mode] then
+            requested += 1
+            local run = farmScripts[mode]
+            if type(run) == "function"
+                and not running[mode] then
+                running[mode] = true
+                started += 1
+                workers[mode] = task.spawn(function()
+                    local ok, err = pcall(run)
+                    running[mode] = false
+                    workers[mode] = nil
+                    if not ok then
+                        warn(
+                            "GALEGAY Farm "
+                            .. mode .. ": "
+                            .. tostring(err)
+                        )
+                    end
+                end)
+            end
+        end
+    end
+    if requested == 0 then
+        statusText.Text =
+            "Select at least one farm before executing."
+    elseif started == 0 then
+        statusText.Text =
+            "Selected scripts are already running."
+    elseif started < requested then
+        statusText.Text =
+            "Started " .. started .. " script(s)."
+    else
+        statusText.Text =
+            "Starting " .. started .. " script(s)."
+    end
+end
+executeButton.MouseButton1Click:Connect(executeSelected)
+local serverhopButton = ui("TextButton", {
+    Size = UDim2.new(1, -5, 0, 48),
+    LayoutOrder = 7,
+    BackgroundColor3 = Color3.fromRGB(52, 60, 82),
+    BorderSizePixel = 0,
+    Text = "SERVERHOP",
+    Font = Enum.Font.GothamBold,
+    TextSize = 16,
+    TextColor3 = Color3.new(1, 1, 1)
+}, farmPage)
+round(serverhopButton, 10)
+serverhopButton.MouseButton1Click:Connect(function()
+    task.spawn(serverhop)
+end)
+if autoExecute then
+    task.spawn(function()
+        local character =
+            player.Character or player.CharacterAdded:Wait()
+        if not character:FindFirstChild("HumanoidRootPart") then
+            character:WaitForChild("HumanoidRootPart")
+        end
+        if not alive or not autoExecute then
+            return
+        end
+        if smallServer
+            and #Players:GetPlayers() > 5 then
+            statusText.Text =
+                "Searching for a small server..."
+            serverhop()
+            return
+        end
+        executeSelected()
+    end)
+end
+local minimized = false
+minimize.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    sidebar.Visible = not minimized
+    content.Visible = not minimized
+    main.Size = minimized
+        and UDim2.fromOffset(850, 62)
+        or UDim2.fromOffset(850, 480)
+    minimize.Text = minimized and "+" or "—"
+end)
+local dragging = false
+local dragStart, originalPos, dragInput
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        originalPos = main.Position
+        dragInput = input
+    end
+end)
+local inputChanged = UIS.InputChanged:Connect(function(input)
+    if sliding and (
+        input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch
+    ) then
+        slideAt(input.Position.X)
+    end
+    if dragging and (
+        input.UserInputType == Enum.UserInputType.MouseMovement
+        or input == dragInput
+    ) then
+        local delta = input.Position - dragStart
+        main.Position = UDim2.new(
+            originalPos.X.Scale,
+            originalPos.X.Offset + delta.X,
+            originalPos.Y.Scale,
+            originalPos.Y.Offset + delta.Y
+        )
+    end
+end)
+local inputEnded = UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+        sliding = false
+    end
+end)
+local stopClicks = 0
+if hasHopped then
+    local stopLabel = ui("TextLabel", {
+        Name = "StopInstructions",
+        AnchorPoint = Vector2.new(0.5, 1),
+        Position = UDim2.new(0.5, 0, 0.5, -69),
+        Size = UDim2.fromOffset(360, 48),
+        BackgroundTransparency = 1,
+        Text = "Press twice to stop",
+        TextScaled = true,
+        Font = Enum.Font.GothamBold,
+        TextColor3 = Color3.new(1, 1, 1),
+        TextStrokeTransparency = 0,
+        ZIndex = 100
+    }, gui)
+    local stopButton = ui("TextButton", {
+        Name = "STOP",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(310, 118),
+        BackgroundColor3 = Color3.fromRGB(220, 32, 42),
+        BorderSizePixel = 0,
+        Text = "STOP",
+        Font = Enum.Font.GothamBlack,
+        TextScaled = true,
+        TextColor3 = Color3.new(1, 1, 1),
+        ZIndex = 100
+    }, gui)
+    round(stopButton, 16)
+    stopButton.MouseButton1Click:Connect(function()
+        stopClicks += 1
+        if stopClicks == 1 then
+            stopLabel.Text = "Press once more to stop"
+            return
+        end
+        if stopTriggered then return end
+        stopTriggered = true
+        local externalSnowMayContinue = running.Snow
+        autoExecute = false
+        smallServer = false
+        stopWorkers()
+        saveSettings()
+        if type(writefile) == "function" then
+            pcall(function()
+                writefile(STOP_FILE, "1")
+                writefile(HOP_FILE, "0")
+                writefile(LAST_SERVER_FILE, game.JobId)
+            end)
+        end
+        updateSelections()
+        updateSettingButtons()
+        statusText.Text = externalSnowMayContinue
+            and "Hub ON, farms OFF. External Snow may continue until you leave the game."
+            or "Hub ON, all farms OFF. Choose what to enable."
+        stopButton.Visible = false
+        stopLabel.Visible = false
+        stopTriggered = false
+    end)
+end
+local function shutdownInstance()
+    alive = false
+    stopWorkers()
+    hopConnection:Disconnect()
+    joins:Disconnect()
+    leaves:Disconnect()
+    inputChanged:Disconnect()
+    inputEnded:Disconnect()
+    cameraConnection:Disconnect()
+    if viewportConnection then
+        viewportConnection:Disconnect()
+    end
+    if runtimeEnvironment.__KSTG_FARM_SHUTDOWN == shutdownInstance then
+        runtimeEnvironment.__KSTG_FARM_SHUTDOWN = nil
+    end
+    gui:Destroy()
+end
+runtimeEnvironment.__KSTG_FARM_SHUTDOWN = shutdownInstance
+close.MouseButton1Click:Connect(function()
+    autoExecute = false
+    saveSettings()
+    shutdownInstance()
+end)
+]=======]
+
+local SETTINGS_FILE = "galegay_farm_settings.txt"
+local STOP_FILE = "galegay_farm_stopped.flag"
+local HOP_FILE = "galegay_farm_hopped.flag"
+local CORE_FILE = "galegay_farm_core.lua"
+
+if type(writefile) == "function" then
+    local ok, err = pcall(function()
+        local canCheck = type(isfile) == "function"
+        if not canCheck or not isfile(SETTINGS_FILE) then
+            writefile(SETTINGS_FILE, "0|0|0|0|0")
+        end
+        if not canCheck or not isfile(HOP_FILE) then
+            writefile(HOP_FILE, "0")
+        end
+        writefile(STOP_FILE, "0")
+        writefile(CORE_FILE, CORE_SOURCE)
+    end)
+    if not ok then
+        warn("Could not save hub settings: " .. tostring(err))
+    end
+end
+local execute, err = loadstring(CORE_SOURCE)
+if not execute then error(tostring(err)) end
+return execute()
